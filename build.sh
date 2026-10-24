@@ -98,6 +98,8 @@ DROIDSPACES_PATCHES="https://raw.githubusercontent.com/ravindu644/Droidspaces-OS
 PATCH_DIR="${ROOT}/patches"
 
 apply_droidspaces_patches(){
+    info "Applying Droidspaces non-GKI patches (build-time only)"
+    mkdir -p "${PATCH_DIR}"
 
     # fix 1: avoid kernel panic in xt_qtaguid (unsafe dev_get_stats usage
     # on inactive interfaces). Attempted only when the module actually
