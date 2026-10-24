@@ -14,9 +14,10 @@
 #
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  SETTINGS - the part you may need to touch
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 DEFCONFIG="channel_defconfig"
 KERNEL_IMAGE="Image.gz-dtb"
 
@@ -29,9 +30,10 @@ GCC_URL="https://github.com/ravindu644/Android-Kernel-Tutorials/releases/downloa
 export KBUILD_BUILD_USER="@farmeixx"
 export KBUILD_BUILD_HOST="channel-kernel"
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  PATHS - everything happens under this checkout; toolchains land in ~
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_DIR="${ROOT}/kernel-source"
 OUT="${ROOT}/output"
@@ -46,9 +48,10 @@ cd "${ROOT}"
 info(){ echo -e "\n[INFO]: $*\n"; }
 die(){  echo -e "\n[ERROR]: $*\n" >&2; exit 1; }
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  DEPENDENCIES - system packages the 4.9 Kbuild needs (host tools)
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 DEB_PKGS=(build-essential bc bison flex pkg-config git curl tar xz-utils
           zip unzip cpio rsync kmod perl python3 python-is-python3
           libssl-dev libelf-dev pahole libncurses-dev zlib1g-dev libyaml-dev
@@ -61,9 +64,10 @@ install_deps(){
     sudo apt-get install -y "${DEB_PKGS[@]}" || die "apt-get failed"
 }
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  SOURCES - clone the kernel tree, defconfig and flags live on that branch
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 clone_kernel(){
     [ -d "${KERNEL_DIR}" ] && { info "kernel source already present"; return 0; }
     info "Cloning ${KERNEL_URL} (${KERNEL_BRANCH}, depth=1)"
@@ -71,9 +75,10 @@ clone_kernel(){
         || { rm -rf "${KERNEL_DIR}"; die "kernel clone failed"; }
 }
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  TOOLCHAINS - download once or reuse; clang compiles, gcc links/assembles
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 fetch_toolchains(){
     if [ ! -x "${CLANG_DIR}/bin/clang" ]; then
         info "Fetching Proton Clang 12"
@@ -122,11 +127,12 @@ fetch_toolchains(){
     # with an ABI version mismatch instead)
 }
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  PATCHES - Droidspaces Step 3 (non-GKI), applied at build time so the
 #  kernel repository history stays untouched. Source of truth:
 #  https://github.com/ravindu644/Droidspaces-OSS/blob/main/Documentation/Kernel-Configuration.md
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 DROIDSPACES_PATCHES="https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI"
 PATCH_DIR="${ROOT}/patches"
 
@@ -173,9 +179,10 @@ apply_droidspaces_patches(){
     rm -f "${PATCH_DIR}"/0*.patch
 }
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  BUILD OPTIONS - the fixed make arguments for this arm64/4.9 tree
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 BUILD_OPTIONS=(
     -j"$(nproc)"
     ARCH=arm64
@@ -192,9 +199,10 @@ BUILD_OPTIONS=(
     CROSS_COMPILE_ARM32="${ARM32_DIR}/arm-linux-gnueabihf-"
 )
 
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
 #  RUN - defconfig, build the image, collect the artifact
-# ---------------------------------------------------------------------------
+#---------------------------------------------------------------------------#
+
 install_deps
 clone_kernel
 apply_droidspaces_patches
