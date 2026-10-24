@@ -38,6 +38,7 @@ OUT="${ROOT}/output"
 TOOLCHAINS="${HOME}/toolchains"
 CLANG_DIR="${TOOLCHAINS}/proton-12"
 GCC_DIR="${TOOLCHAINS}/linaro-aarch64-7.5"
+ARM32_DIR="${TOOLCHAINS}/arm32_gnueabihf"
 
 cd "${ROOT}"
 
@@ -85,6 +86,27 @@ fetch_toolchains(){
         curl -fsSL --retry 3 -o /tmp/linaro.tar.xz "${GCC_URL}" || die "gcc download failed"
         tar -xf /tmp/linaro.tar.xz -C "${GCC_DIR}" --strip-components=1
         rm -f /tmp/linaro.tar.xz
+    fi
+    # arm32 toolchain for the compat vDSO: clang resolves its external
+    # assembler and linker through the --prefix directory, and the plain
+    # "as"/"ld" names found there win over the triple-prefixed ones. The
+    # apt armhf toolchain installs alongside the x86 host binutils in
+    # /usr/bin, so the host as/ld would shadow the arm32 ones. A private
+    # directory with symlinks removes that clash: the tree then derives
+    # --prefix from CROSS_COMPILE_ARM32 and always hits arm32 tools.
+    if [ ! -x "${ARM32_DIR}/arm-linux-gnueabihf-as" ]; then
+        info "Setting up the arm32 compat vDSO toolchain"
+        command -v arm-linux-gnueabihf-as >/dev/null \
+            || die "arm32 toolchain missing (gcc-arm-linux-gnueabihf)"
+        mkdir -p "${ARM32_DIR}"
+        for t in as ld ar nm objcopy objdump readelf strip gcc; do
+            if command -v "arm-linux-gnueabihf-${t}" >/dev/null 2>&1; then
+                ln -sf "$(command -v "arm-linux-gnueabihf-${t}")" \
+                    "${ARM32_DIR}/arm-linux-gnueabihf-${t}"
+            fi
+        done
+        ln -sf "$(command -v arm-linux-gnueabihf-as)" "${ARM32_DIR}/as"
+        ln -sf "$(command -v arm-linux-gnueabihf-ld)" "${ARM32_DIR}/ld"
     fi
     # host tools (fixdep etc.) are linked by the system gcc, whose ld is
     # resolved through PATH. Keep /usr/bin ahead so the host link does not
@@ -163,9 +185,11 @@ BUILD_OPTIONS=(
     CROSS_COMPILE=aarch64-linux-gnu-
     CLANG_TRIPLE=aarch64-linux-gnu-
     # the Motorola arm64 Makefile demands an arm32 cross prefix for the
-    # compat vDSO (CONFIG_COMPAT_VDSO in the channel defconfig); the
-    # Ubuntu cross gcc for armhf provides it
-    CROSS_COMPILE_ARM32=arm-linux-gnueabihf-
+    # compat vDSO (CONFIG_COMPAT_VDSO in the channel defconfig). An
+    # absolute path to the private arm32 dir keeps the tree from deriving
+    # its assembler --prefix from /usr/bin, where the x86 host tools would
+    # win; the symlinks point to the real apt arm32 toolchain
+    CROSS_COMPILE_ARM32="${ARM32_DIR}/arm-linux-gnueabihf-"
 )
 
 # ---------------------------------------------------------------------------
