@@ -90,6 +90,55 @@ fetch_toolchains(){
 }
 
 # ---------------------------------------------------------------------------
+#  PATCHES - Droidspaces Step 3 (non-GKI), applied at build time so the
+#  kernel repository history stays untouched. Source of truth:
+#  https://github.com/ravindu644/Droidspaces-OSS/blob/main/Documentation/Kernel-Configuration.md
+# ---------------------------------------------------------------------------
+DROIDSPACES_PATCHES="https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/non-GKI"
+PATCH_DIR="${ROOT}/patches"
+
+apply_droidspaces_patches(){
+
+    # fix 1: avoid kernel panic in xt_qtaguid (unsafe dev_get_stats usage
+    # on inactive interfaces). Attempted only when the module actually
+    # exists in the tree; this Motorola sdm632 tree ships quota2 instead
+    # of xt_qtaguid, so the target file is normally absent and the fix
+    # is skipped as not applicable
+    local p1="${PATCH_DIR}/01.fix_kernel_panic_in_xt_qtaguid.patch"
+    if [ -f "${KERNEL_DIR}/net/netfilter/xt_qtaguid.c" ]; then
+        curl -fsSL --retry 3 -o "${p1}" \
+            "${DROIDSPACES_PATCHES}/01.fix_kernel_panic_in_xt_qtaguid.patch" \
+            || { rm -f "${p1}"; die "failed to download fix 1 (xt_qtaguid)"; }
+        ( cd "${KERNEL_DIR}" && git apply "${p1}" ) \
+            || { rm -f "${p1}"; die "fix 1 (xt_qtaguid) does not apply"; }
+        info "xt_qtaguid panic fix applied"
+    else
+        info "xt_qtaguid is not present in this tree (quota2 is used) -> fix 1 skipped"
+    fi
+
+    # fix 2: restore cgroup file prefix handling (needed by Droidspaces/LXC:
+    # when cgroupfs is mounted with noprefix, control files regain their
+    # <subsys>.<name> aliases). The upstream patch targets
+    # kernel/cgroup/cgroup.c while this Motorola tree keeps the code
+    # flattened in kernel/cgroup.c, so the path inside the patch is
+    # adjusted before applying
+    local p2="${PATCH_DIR}/02.fix_restore_cgroup_file_prefix_handling.patch"
+    curl -fsSL --retry 3 -o "${p2}" \
+        "${DROIDSPACES_PATCHES}/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch" \
+        || { rm -f "${p2}"; die "failed to download fix 2 (cgroup prefix)"; }
+    sed -i 's#kernel/cgroup/cgroup.c#kernel/cgroup.c#g' "${p2}"
+    if grep -q "kernfs_create_link(cgrp->kn, name, kn)" "${KERNEL_DIR}/kernel/cgroup.c"; then
+        info "cgroup prefix fix already present -> skipped"
+    else
+        ( cd "${KERNEL_DIR}" && git apply "${p2}" ) \
+            || { rm -f "${p2}"; die "fix 2 (cgroup prefix) does not apply"; }
+        info "cgroup file prefix fix applied"
+    fi
+
+    rm -f "${PATCH_DIR}"/0*.patch
+}
+
+# ---------------------------------------------------------------------------
 #  BUILD OPTIONS - the fixed make arguments for this arm64/4.9 tree
 # ---------------------------------------------------------------------------
 BUILD_OPTIONS=(
@@ -105,6 +154,7 @@ BUILD_OPTIONS=(
 # ---------------------------------------------------------------------------
 install_deps
 clone_kernel
+apply_droidspaces_patches
 fetch_toolchains
 
 cd "${KERNEL_DIR}"
