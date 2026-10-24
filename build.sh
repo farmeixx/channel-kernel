@@ -27,6 +27,12 @@ KERNEL_BRANCH="lineage-17.1"
 CLANG_URL="https://github.com/ravindu644/proton-12.git"
 GCC_URL="https://github.com/ravindu644/Android-Kernel-Tutorials/releases/download/toolchains/linaro-aarch64-7.5.tar.xz"
 
+# upstream AnyKernel3 pinned to the commit reviewed when integrating the
+# zip packaging; the channel-tuned anykernel.sh lives in this repo
+AK3_URL="https://github.com/osm0sis/AnyKernel3.git"
+AK3_REF="020dfeccf9d7e962a48400fc94d3e451df92eead"
+AK3_ZIP="channel-AnyKernel3.zip"
+
 export KBUILD_BUILD_USER="@farmeixx"
 export KBUILD_BUILD_HOST="channel-kernel"
 
@@ -41,6 +47,7 @@ TOOLCHAINS="${HOME}/toolchains"
 CLANG_DIR="${TOOLCHAINS}/proton-12"
 GCC_DIR="${TOOLCHAINS}/linaro-aarch64-7.5"
 ARM32_DIR="${TOOLCHAINS}/arm32_gnueabihf"
+AK3_DIR="${ROOT}/AnyKernel3"
 
 cd "${ROOT}"
 
@@ -188,6 +195,32 @@ apply_droidspaces_patches(){
 }
 
 #---------------------------------------------------------------------------#
+#  PACKAGE - AnyKernel3 flashable zip (recovery install; kernel only)
+#---------------------------------------------------------------------------#
+# the channel-tuned anykernel.sh lives in this repo; the pinned AnyKernel3
+# clone only supplies tools/, META-INF/ and the update-binary machinery,
+# so the zip content stays exactly what the channel needs: repack the
+# current boot image around the built Image.gz-dtb, ramdisk untouched
+package_anykernel(){
+    info "Packaging the AnyKernel3 flashable zip"
+    if [ ! -d "${AK3_DIR}/tools" ]; then
+        git clone "${AK3_URL}" "${AK3_DIR}" || die "AnyKernel3 clone failed"
+        git -C "${AK3_DIR}" checkout "${AK3_REF}" \
+            || die "AnyKernel3 pin ${AK3_REF} not found"
+    fi
+    cp "${ROOT}/anykernel.sh" "${AK3_DIR}/anykernel.sh"
+    cp "${OUT}/${KERNEL_IMAGE}" "${AK3_DIR}/${KERNEL_IMAGE}"
+    (
+        cd "${AK3_DIR}"
+        rm -f ./*.zip
+        # upstream packaging command: placeholders, README and .git stay out
+        zip -r9 "${OUT}/${AK3_ZIP}" * -x .git README.md *placeholder \
+            || die "AnyKernel3 zip packaging failed"
+    )
+    [ -s "${OUT}/${AK3_ZIP}" ] || die "AnyKernel3 zip was not created"
+}
+
+#---------------------------------------------------------------------------#
 #  BUILD OPTIONS - the fixed make arguments for this arm64/4.9 tree
 #---------------------------------------------------------------------------#
 
@@ -232,8 +265,11 @@ cp "out/arch/arm64/boot/${KERNEL_IMAGE}" "${OUT}/"
 # informational only: compiler cache productivity of this run
 ccache --show-stats || true
 
+# recovery flashable zip built from the produced image
+package_anykernel
+
 # informational only: shows the Droidspaces flags as resolved by the build
 info "Droidspaces flags resolved in out/.config:"
 grep -E '^CONFIG_(SYSVIPC|POSIX_MQUEUE|NAMESPACES|IPC_NS|PID_NS|UTS_NS|USER_NS|MEMCG|MEMCG_SWAP|CGROUP_DEVICE|CGROUP_PIDS|CGROUP_NET_PRIO|DEVTMPFS|OVERLAY_FS|VETH|NF_TABLES|XT_MATCH_ADDRTYPE|IP6_NF_NAT|MACVLAN|IP_SET|XT_SET)=y' "out/.config" || true
 
-info "Done -> ${OUT}/${KERNEL_IMAGE}"
+info "Done -> ${OUT}/${KERNEL_IMAGE} and ${OUT}/${AK3_ZIP}"

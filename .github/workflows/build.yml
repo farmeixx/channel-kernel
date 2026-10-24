@@ -41,3 +41,10 @@ jobs:
         with:
           name: channel-Image.gz-dtb
           path: output/Image.gz-dtb
+
+      # upload the recovery flashable zip produced from the image
+      - name: Upload AnyKernel3 zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: channel-AnyKernel3
+          path: output/channel-AnyKernel3.zip
