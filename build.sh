@@ -85,7 +85,11 @@ fetch_toolchains(){
         tar -xf /tmp/linaro.tar.xz -C "${GCC_DIR}" --strip-components=1
         rm -f /tmp/linaro.tar.xz
     fi
-    export PATH="${CLANG_DIR}/bin:${GCC_DIR}/bin:${PATH}"
+    # host tools (fixdep etc.) are linked by the system gcc, whose ld is
+    # resolved through PATH. Keep /usr/bin ahead of the toolchain bins so
+    # the host link does not pick the 2021-era unprefixed ld bundled with
+    # proton clang, which cannot read the RELR sections modern glibc ships
+    export PATH="/usr/bin:${CLANG_DIR}/bin:${GCC_DIR}/bin:${PATH}"
     export LD_LIBRARY_PATH="${CLANG_DIR}/lib:${CLANG_DIR}/lib64:${LD_LIBRARY_PATH:-}"
 }
 
