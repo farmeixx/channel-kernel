@@ -19,6 +19,15 @@ jobs:
       - name: Checkout build repo
         uses: actions/checkout@v4
 
+      # ccache: objects are keyed on each run and always restored from the
+      # newest previous entry (restore-keys), so repeated builds warm up
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-channel-${{ github.run_number }}
+          restore-keys: ccache-channel-
+
       # build.sh clones the kernel, configures channel_defconfig and
       # compiles Image.gz-dtb with proton clang 12 + linaro gcc 7.5
       - name: Run build.sh

@@ -52,7 +52,7 @@ die(){  echo -e "\n[ERROR]: $*\n" >&2; exit 1; }
 #  DEPENDENCIES - system packages the 4.9 Kbuild needs (host tools)
 #---------------------------------------------------------------------------#
 
-DEB_PKGS=(build-essential bc bison flex pkg-config git curl tar xz-utils
+DEB_PKGS=(build-essential bc bison ccache flex pkg-config git curl tar xz-utils
           zip unzip cpio rsync kmod perl python3 python-is-python3
           libssl-dev libelf-dev pahole libncurses-dev zlib1g-dev libyaml-dev
           lz4 zstd device-tree-compiler
@@ -62,6 +62,14 @@ install_deps(){
     info "Installing kernel build dependencies"
     sudo apt-get update
     sudo apt-get install -y "${DEB_PKGS[@]}" || die "apt-get failed"
+    # ccache: speeds up repeated builds. The config lives inside the cache
+    # dir, so it survives across runs together with the cached objects:
+    # file_macro is required for kernel builds, time_macros/locale tolerate
+    # environment drift and the include_* values ignore header timestamp
+    # changes between a cache restore and its use
+    info "Configuring ccache for the kernel compiler"
+    ccache --max-size 5G
+    ccache --set-config "sloppiness=file_macro,time_macros,locale,include_file_mtime,include_file_ctime"
 }
 
 #---------------------------------------------------------------------------#
@@ -187,8 +195,10 @@ BUILD_OPTIONS=(
     -j"$(nproc)"
     ARCH=arm64
     # full path so the runner's own /usr/bin/clang never shadows proton,
-    # no matter how PATH is ordered for the host tools
-    CC="${CLANG_DIR}/bin/clang"
+    # no matter how PATH is ordered for the host tools. ccache sits in
+    # front of the compiler to accelerate repeated builds; kbuild runs
+    # the pair transparently and the probes keep identical exit codes
+    CC="ccache ${CLANG_DIR}/bin/clang"
     CROSS_COMPILE=aarch64-linux-gnu-
     CLANG_TRIPLE=aarch64-linux-gnu-
     # the Motorola arm64 Makefile demands an arm32 cross prefix for the
@@ -218,6 +228,9 @@ make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" "${KERNEL_IMAGE}" || die "kerne
 # final artifact: Image.gz-dtb (kernel image that already carries the dtb)
 mkdir -p "${OUT}"
 cp "out/arch/arm64/boot/${KERNEL_IMAGE}" "${OUT}/"
+
+# informational only: compiler cache productivity of this run
+ccache --show-stats || true
 
 # informational only: shows the Droidspaces flags as resolved by the build
 info "Droidspaces flags resolved in out/.config:"
