@@ -90,7 +90,10 @@ fetch_toolchains(){
     # the host link does not pick the 2021-era unprefixed ld bundled with
     # proton clang, which cannot read the RELR sections modern glibc ships
     export PATH="/usr/bin:${CLANG_DIR}/bin:${GCC_DIR}/bin:${PATH}"
-    export LD_LIBRARY_PATH="${CLANG_DIR}/lib:${CLANG_DIR}/lib64:${LD_LIBRARY_PATH:-}"
+    # no LD_LIBRARY_PATH on purpose: proton clang is self-contained and
+    # exporting its lib dir globally would shadow the system libraries
+    # used by /usr/bin/ld (it loaded the old proton libctf and crashed
+    # with an ABI version mismatch instead)
 }
 
 # ---------------------------------------------------------------------------
