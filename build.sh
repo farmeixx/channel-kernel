@@ -51,7 +51,8 @@ die(){  echo -e "\n[ERROR]: $*\n" >&2; exit 1; }
 DEB_PKGS=(build-essential bc bison flex pkg-config git curl tar xz-utils
           zip unzip cpio rsync kmod perl python3 python-is-python3
           libssl-dev libelf-dev pahole libncurses-dev zlib1g-dev libyaml-dev
-          lz4 zstd device-tree-compiler)
+          lz4 zstd device-tree-compiler
+          gcc-arm-linux-gnueabihf)
 
 install_deps(){
     info "Installing kernel build dependencies"
@@ -156,6 +157,10 @@ BUILD_OPTIONS=(
     CC=clang
     CROSS_COMPILE=aarch64-linux-gnu-
     CLANG_TRIPLE=aarch64-linux-gnu-
+    # the Motorola arm64 Makefile demands an arm32 cross prefix for the
+    # compat vDSO (CONFIG_COMPAT_VDSO in the channel defconfig); the
+    # Ubuntu cross gcc for armhf provides it
+    CROSS_COMPILE_ARM32=arm-linux-gnueabihf-
 )
 
 # ---------------------------------------------------------------------------
