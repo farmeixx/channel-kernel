@@ -1,0 +1,34 @@
+name: channel kernel build
+
+# manual trigger; the whole flow lives in build.sh (this only calls it)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  build:
+    name: Build channel kernel (llvm clang, lineage-17.1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+
+      # checkout this build repo so ./build.sh is available
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+
+      # build.sh clones the kernel, configures channel_defconfig and
+      # compiles Image.gz-dtb with proton clang 12 + linaro gcc 7.5
+      - name: Run build.sh
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      # upload the built image (kernel + channel dtb) as the artifact
+      - name: Upload Image.gz-dtb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: channel-Image.gz-dtb
+          path: output/Image.gz-dtb
