@@ -87,10 +87,13 @@ fetch_toolchains(){
         rm -f /tmp/linaro.tar.xz
     fi
     # host tools (fixdep etc.) are linked by the system gcc, whose ld is
-    # resolved through PATH. Keep /usr/bin ahead of the toolchain bins so
-    # the host link does not pick the 2021-era unprefixed ld bundled with
-    # proton clang, which cannot read the RELR sections modern glibc ships
-    export PATH="/usr/bin:${CLANG_DIR}/bin:${GCC_DIR}/bin:${PATH}"
+    # resolved through PATH. Keep /usr/bin ahead so the host link does not
+    # pick the 2021-era unprefixed ld bundled with proton clang, which
+    # cannot read the RELR sections of modern glibc. The Linaro dir comes
+    # BEFORE proton so that the tree's toolchain auto-detection
+    # (which $(CROSS_COMPILE)elfedit) lands on the real aarch64 GNU
+    # assembler for -no-integrated-as instead of proton's x86-only one.
+    export PATH="/usr/bin:${GCC_DIR}/bin:${CLANG_DIR}/bin:${PATH}"
     # no LD_LIBRARY_PATH on purpose: proton clang is self-contained and
     # exporting its lib dir globally would shadow the system libraries
     # used by /usr/bin/ld (it loaded the old proton libctf and crashed
@@ -154,7 +157,9 @@ apply_droidspaces_patches(){
 BUILD_OPTIONS=(
     -j"$(nproc)"
     ARCH=arm64
-    CC=clang
+    # full path so the runner's own /usr/bin/clang never shadows proton,
+    # no matter how PATH is ordered for the host tools
+    CC="${CLANG_DIR}/bin/clang"
     CROSS_COMPILE=aarch64-linux-gnu-
     CLANG_TRIPLE=aarch64-linux-gnu-
     # the Motorola arm64 Makefile demands an arm32 cross prefix for the
@@ -174,14 +179,6 @@ fetch_toolchains
 cd "${KERNEL_DIR}"
 info "Configuring ${DEFCONFIG}"
 make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" "${DEFCONFIG}" || die "defconfig failed"
-
-# ---- TEMPORARY DEBUG: reproduce kbuild's cc-option probe with the real
-# KBUILD flags and scan every flag alone, so the real clang error becomes
-# visible in the log instead of the generic not-supported message
-info "[debug] reproducing the cc-option probe"
-make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" \
-    --eval='probe: ;@echo "== clang =="; command -v $(CC); $(CC) --version | head -n 1; echo "== full probe (stackp) =="; $(CC) $(KBUILD_CPPFLAGS) $(CC_OPTION_CFLAGS) -fstack-protector-strong -c -x c /dev/null -o /tmp/probe_full.o && echo FULL_PROBE_OK || echo FULL_PROBE_FAIL; echo "== per-flag scan =="; for F in $(KBUILD_CPPFLAGS) $(CC_OPTION_CFLAGS); do if ! $(CC) -Werror $$F -c -x c /dev/null -o /tmp/probe_one.o 2>/dev/null; then echo FLAG_FAIL $$F; fi; done; true' \
-    probe || true
 
 info "Building ${KERNEL_IMAGE}"
 make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" "${KERNEL_IMAGE}" || die "kernel build failed"
