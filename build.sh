@@ -175,6 +175,14 @@ cd "${KERNEL_DIR}"
 info "Configuring ${DEFCONFIG}"
 make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" "${DEFCONFIG}" || die "defconfig failed"
 
+# ---- TEMPORARY DEBUG: reproduce kbuild's cc-option probe with the real
+# KBUILD flags and scan every flag alone, so the real clang error becomes
+# visible in the log instead of the generic not-supported message
+info "[debug] reproducing the cc-option probe"
+make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" \
+    --eval='probe: ;@echo "== clang =="; command -v $(CC); $(CC) --version | head -n 1; echo "== full probe (stackp) =="; $(CC) $(KBUILD_CPPFLAGS) $(CC_OPTION_CFLAGS) -fstack-protector-strong -c -x c /dev/null -o /tmp/probe_full.o && echo FULL_PROBE_OK || echo FULL_PROBE_FAIL; echo "== per-flag scan =="; for F in $(KBUILD_CPPFLAGS) $(CC_OPTION_CFLAGS); do if ! $(CC) -Werror $$F -c -x c /dev/null -o /tmp/probe_one.o 2>/dev/null; then echo FLAG_FAIL $$F; fi; done; true' \
+    probe || true
+
 info "Building ${KERNEL_IMAGE}"
 make "${BUILD_OPTIONS[@]}" "O=${KERNEL_DIR}/out" "${KERNEL_IMAGE}" || die "kernel build failed"
 
